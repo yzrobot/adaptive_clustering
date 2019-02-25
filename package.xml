@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package>
+  <name>adaptive_clustering</name>
+  <version>0.0.1</version>
+  <description>Light-weight real-time high-accuracy point cloud clustering.</description>
+  <maintainer email="zhi.yan@utbm.fr">Zhi Yan</maintainer>
+  <maintainer email="lsun@lincoln.ac.uk">Li Sun</maintainer>
+  <license>BSD</license>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <build_depend>roscpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  
+  <run_depend>roscpp</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>visualization_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>pcl_conversions</run_depend>
+  <run_depend>pcl_ros</run_depend>
+</package>

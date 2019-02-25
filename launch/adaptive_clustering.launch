@@ -1,0 +1,17 @@
+<launch>
+  <!-- rosbag play -->
+  <arg name="bag"/>
+  <param name="use_sim_time" value="true"/>
+  <node pkg="rosbag" type="play" name="rosbag_play" args="--clock --pause --queue=1000 -r 1.0 $(arg bag)"/>
+  
+  <node pkg="point_cloud_converter" name="point_cloud_converter" type="point_cloud_converter_node">
+    <remap from="points_in" to="velodyne/assembled_cloud"/>
+    <remap from="points2_out" to="velodyne_points"/>
+  </node>
+
+  <node pkg="adaptive_clustering" name="adaptive_clustering" type="adaptive_clustering">
+    <param name="print_fps" value="true"/>
+  </node>
+  
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(env PWD)/adaptive_clustering.rviz"/>
+</launch>
