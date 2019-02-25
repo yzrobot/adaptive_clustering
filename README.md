@@ -11,7 +11,7 @@ A lightweight and accurate point cloud clustering method.
 ## How to build ##
 ```
 $ cd ~/catkin_ws/src/
-$ git clone https://github.com/yzrobot/online_learning.git
+$ git clone https://github.com/yzrobot/adaptive_clustering.git
 $ cd ~/catkin_ws
 $ catkin_make
 ```
