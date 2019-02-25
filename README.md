@@ -1,7 +1,8 @@
 # Adaptive Clustering #
 
-[![Build Status](https://travis-ci.org/yzrobot/online_learning.svg?branch=master)](https://travis-ci.org/yzrobot/online_learning)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/85d6393df92749238fb740e173be5bfa)](https://www.codacy.com/app/yzrobot/online_learning?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=yzrobot/online_learning&amp;utm_campaign=Badge_Grade)
+[![Build Status](https://travis-ci.org/yzrobot/adaptive_clustering.svg?branch=master)](https://travis-ci.org/yzrobot/adaptive_clustering)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/61a01a79a7ac41fd9deded9050ef6030)](https://www.codacy.com/app/yzrobot/adaptive_clustering?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=yzrobot/adaptive_clustering&amp;utm_campaign=Badge_Grade)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A lightweight and accurate point cloud clustering method.
