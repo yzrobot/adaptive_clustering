@@ -17,6 +17,6 @@ install:
 
 script:
   - cd ~/catkin_ws/src
-  - git clone -b Indigo https://github.com/yzrobot/adaptive_clustering.git
+  - git clone https://github.com/yzrobot/adaptive_clustering.git
   - cd ~/catkin_ws
   - catkin_make
