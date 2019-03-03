@@ -40,11 +40,10 @@ float z_axis_max_;
 int cluster_size_min_;
 int cluster_size_max_;
 
-const int region_max_ = 5;
+const int region_max_ = 7; // Change this value to match how far you want to detect.
 int regions_[100];
 uint32_t cluster_array_seq_ = 0;
 uint32_t pose_array_seq_ = 0;
-uint32_t cluster_seq_ = 0;
 
 Eigen::Vector4f min_, max_;
 
@@ -141,8 +140,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       geometry_msgs::Pose pose;
       pose.position.x = centroid[0];
       pose.position.y = centroid[1];
-      //pose.position.z = centroid[2];
-      pose.position.z = ++cluster_seq_;
+      pose.position.z = centroid[2];
       pose.orientation.w = 1;
       pose_array.poses.push_back(pose);
     }
