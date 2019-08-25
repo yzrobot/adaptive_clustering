@@ -19,13 +19,10 @@ $ catkin_make
 ## Citation ##
 If you are considering using this code, please reference the following:
 ```
-@inproceedings{yz17iros,
+@article{yz19auro,
    author = {Zhi Yan and Tom Duckett and Nicola Bellotto},
-   title = {Online learning for human classification in {3D LiDAR-based} tracking},
-   booktitle = {In Proceedings of the 2017 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
-   pages = {864--871},
-   address = {Vancouver, Canada},
-   month = {September},
-   year = {2017}
+   title = {Online learning for 3D LiDAR-based human detection: Experimental analysis of point cloud clustering and classification methods},
+   journal = {Autonomous Robots},
+   year = {2019}
 }
 ```
