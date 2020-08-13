@@ -45,8 +45,6 @@ int regions_[100];
 uint32_t cluster_array_seq_ = 0;
 uint32_t pose_array_seq_ = 0;
 
-Eigen::Vector4f min_, max_;
-
 int frames; clock_t start_time; bool reset = true;//fps
 void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   if(print_fps_)if(reset){frames=0;start_time=clock();reset=false;}//fps
