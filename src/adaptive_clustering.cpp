@@ -35,10 +35,17 @@ ros::Publisher marker_array_pub_;
 std::string sensor_model_;
 std::string frame_id_;
 bool print_fps_;
+float leaf_x_;
+float leaf_y_;
+float leaf_z_;
 float z_axis_min_;
 float z_axis_max_;
+float radius_min_;
+float radius_max_;
 int cluster_size_min_;
 int cluster_size_max_;
+float k_merging_threshold_;
+float z_merging_threshold_;
 
 const int region_max_ = 7; // Change this value to match how far you want to detect.
 int regions_[100];
@@ -53,6 +60,16 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_pc_in(new pcl::PointCloud<pcl::PointXYZI>);
   pcl::fromROSMsg(*ros_pc2_in, *pcl_pc_in);
   
+  /*** Downsampling if necessary ***/
+  if(leaf_x_ > 0 || leaf_y_ > 0 || leaf_z_ > 0) {
+    //std::cerr << "Points before downsampling: " << pcl_pc_in->size() << std::endl;
+    pcl::VoxelGrid<pcl::PointXYZI> vg;
+    vg.setInputCloud(pcl_pc_in);
+    vg.setLeafSize(leaf_x_, leaf_y_, leaf_z_);
+    vg.filter(*pcl_pc_in);
+    //std::cerr << "Points after downsampling: " << pcl_pc_in->size() << std::endl;
+  }
+
   /*** Remove ground and ceiling ***/
   pcl::IndicesPtr pc_indices(new std::vector<int>);
   pcl::PassThrough<pcl::PointXYZI> pt;
@@ -69,7 +86,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       float d2 = pcl_pc_in->points[(*pc_indices)[i]].x * pcl_pc_in->points[(*pc_indices)[i]].x +
 	pcl_pc_in->points[(*pc_indices)[i]].y * pcl_pc_in->points[(*pc_indices)[i]].y +
 	pcl_pc_in->points[(*pc_indices)[i]].z * pcl_pc_in->points[(*pc_indices)[i]].z;
-      if(d2 > range * range && d2 <= (range+regions_[j]) * (range+regions_[j])) {
+      if(d2 > radius_min_ * radius_min_ && d2 < radius_max_ * radius_max_ &&
+	 d2 > range * range && d2 <= (range+regions_[j]) * (range+regions_[j])) {
       	indices_array[j].push_back((*pc_indices)[i]);
       	break;
       }
@@ -80,6 +98,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   /*** Euclidean clustering ***/
   float tolerance = 0.0;
   std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr, Eigen::aligned_allocator<pcl::PointCloud<pcl::PointXYZI>::Ptr > > clusters;
+  int last_clusters_begin = 0;
+  int last_clusters_end = 0;
   
   for(int i = 0; i < region_max_; i++) {
     tolerance += 0.1;
@@ -102,12 +122,48 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       	pcl::PointCloud<pcl::PointXYZI>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZI>);
       	for(std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit) {
       	  cluster->points.push_back(pcl_pc_in->points[*pit]);
-  	}
+	}
+	/*** Merge clusters separated by nested regions ***/
+	for(int j = last_clusters_begin; j < last_clusters_end; j++) {
+	  pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
+	  int K = 1; //the number of neighbors to search for
+	  std::vector<int> k_indices(K);
+	  std::vector<float> k_sqr_distances(K);
+	  kdtree.setInputCloud(cluster);
+	  if(clusters[j]->points.size() >= 1) {
+	    if(kdtree.nearestKSearch(*clusters[j], clusters[j]->points.size()-1, K, k_indices, k_sqr_distances) > 0) {
+	      if(k_sqr_distances[0] < k_merging_threshold_) {
+		*cluster += *clusters[j];
+		clusters.erase(clusters.begin()+j);
+		last_clusters_end--;
+		//std::cerr << "k-merging: clusters " << j << " is merged" << std::endl; 
+	      }
+	    }
+	  }
+	}
+	/**************************************************/
       	cluster->width = cluster->size();
       	cluster->height = 1;
       	cluster->is_dense = true;
 	clusters.push_back(cluster);
       }
+      /*** Merge z-axis clusters ***/
+      for(int j = last_clusters_end; j < clusters.size(); j++) {
+      	Eigen::Vector4f j_min, j_max;
+      	pcl::getMinMax3D(*clusters[j], j_min, j_max);
+      	for(int k = j+1; k < clusters.size(); k++) {
+      	  Eigen::Vector4f k_min, k_max;
+      	  pcl::getMinMax3D(*clusters[k], k_min, k_max);
+      	  if(std::max(std::min((double)j_max[0], (double)k_max[0]) - std::max((double)j_min[0], (double)k_min[0]), 0.0) * std::max(std::min((double)j_max[1], (double)k_max[1]) - std::max((double)j_min[1], (double)k_min[1]), 0.0) > z_merging_threshold_) {
+      	    *clusters[j] += *clusters[k];
+      	    clusters.erase(clusters.begin()+k);
+      	    //std::cerr << "z-merging: clusters " << k << " is merged into " << j << std::endl; 
+      	  }
+      	}
+      }
+      /*****************************/
+      last_clusters_begin = last_clusters_end;
+      last_clusters_end = clusters.size();
     }
   }
   
@@ -199,7 +255,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
     cluster_array.header.frame_id = frame_id_;
     cluster_array_pub_.publish(cluster_array);
   }
-
+  
   if(pose_array.poses.size()) {
     pose_array.header.seq = ++pose_array_seq_;
     pose_array.header.stamp = ros::Time::now();
@@ -220,7 +276,7 @@ int main(int argc, char **argv) {
   /*** Subscribers ***/
   ros::NodeHandle nh;
   ros::Subscriber point_cloud_sub = nh.subscribe<sensor_msgs::PointCloud2>("velodyne_points", 1, pointCloudCallback);
-
+  
   /*** Publishers ***/
   ros::NodeHandle private_nh("~");
   cluster_array_pub_ = private_nh.advertise<adaptive_clustering::ClusterArray>("clusters", 100);
@@ -232,10 +288,17 @@ int main(int argc, char **argv) {
   private_nh.param<std::string>("sensor_model", sensor_model_, "HDL-32E"); // VLP-16, HDL-32E, HDL-64E
   private_nh.param<std::string>("frame_id", frame_id_, "velodyne");
   private_nh.param<bool>("print_fps", print_fps_, false);
+  private_nh.param<float>("leaf_x", leaf_x_, 0.0);
+  private_nh.param<float>("leaf_y", leaf_y_, 0.0);
+  private_nh.param<float>("leaf_z", leaf_z_, 0.0);
   private_nh.param<float>("z_axis_min", z_axis_min_, -0.5);
   private_nh.param<float>("z_axis_max", z_axis_max_, 5.0);
+  private_nh.param<float>("radius_min", radius_min_, 0.0);
+  private_nh.param<float>("radius_max", radius_max_, 30.0);
   private_nh.param<int>("cluster_size_min", cluster_size_min_, 5);
   private_nh.param<int>("cluster_size_max", cluster_size_max_, 700000);
+  private_nh.param<float>("k_merging_threshold", k_merging_threshold_, 0.1);
+  private_nh.param<float>("z_merging_threshold", z_merging_threshold_, 0.0);
   
   // Divide the point cloud into nested circular regions centred at the sensor.
   // For more details, see our IROS-17 paper "Online learning for human classification in 3D LiDAR-based tracking"
