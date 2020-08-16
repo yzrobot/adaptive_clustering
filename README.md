@@ -1,8 +1,6 @@
 # Adaptive Clustering #
 
-[![Build Status](https://travis-ci.org/yzrobot/adaptive_clustering.svg?branch=master)](https://travis-ci.org/yzrobot/adaptive_clustering)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/61a01a79a7ac41fd9deded9050ef6030)](https://www.codacy.com/app/yzrobot/adaptive_clustering?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=yzrobot/adaptive_clustering&amp;utm_campaign=Badge_Grade)
-[![License](https://img.shields.io/badge/License-BSD%203--Clause-green.svg)](https://opensource.org/licenses/BSD-3-Clause)
+*Downsampling, clustering merging, and more.*
 
 A lightweight and accurate point cloud clustering method.
 
