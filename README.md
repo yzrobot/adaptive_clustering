@@ -1,6 +1,6 @@
 # Adaptive Clustering #
 
-*Downsampling, clustering merging, and more.*
+*Downsampling, cluster merging, and more.*
 
 A lightweight and accurate point cloud clustering method.
 
