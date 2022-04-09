@@ -1,4 +1,4 @@
-// Copyright (C) 2018  Zhi Yan and Li Sun
+// Copyright (C) 2022  Zhi Yan
 
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -22,13 +22,17 @@
 
 // PCL
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/segmentation/extract_clusters.h>
 #include <pcl/common/common.h>
 #include <pcl/common/centroid.h>
 
-//#define LOG
+// PCL-GPU
+#include <pcl/gpu/octree/octree.hpp>
+#include <pcl/gpu/containers/device_array.hpp>
+#include <pcl/gpu/containers/initialization.h>
+#include <pcl/gpu/segmentation/gpu_extract_clusters.h>
+#include <pcl/gpu/segmentation/impl/gpu_extract_clusters.hpp>
+
+#define LOG
 
 ros::Publisher cluster_array_pub_;
 ros::Publisher cloud_filtered_pub_;
@@ -53,69 +57,71 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   pcl::fromROSMsg(*ros_pc2_in, *pcl_pc_in);
   
   /*** Remove ground and ceiling ***/
-  pcl::IndicesPtr pc_indices(new std::vector<int>);
-  pcl::PassThrough<pcl::PointXYZI> pt;
-  pt.setInputCloud(pcl_pc_in);
-  pt.setFilterFieldName("z");
-  pt.setFilterLimits(z_axis_min_, z_axis_max_);
-  pt.filter(*pc_indices);
+  std::vector<int> indices;
+  for(int i = 0; i < pcl_pc_in->size(); ++i) {
+    if(pcl_pc_in->points[i].z >= z_axis_min_ && pcl_pc_in->points[i].z <= z_axis_max_) {
+      indices.push_back(i);
+    }
+  }
+  pcl::copyPointCloud(*pcl_pc_in, indices, *pcl_pc_in);
   
   /*** Divide the point cloud into nested circular regions ***/
   boost::array<std::vector<int>, region_max_> indices_array;
-  for(int i = 0; i < pc_indices->size(); i++) {
+  for(int i = 0; i < pcl_pc_in->size(); i++) {
     float range = 0.0;
     for(int j = 0; j < region_max_; j++) {
-      float d2 = pcl_pc_in->points[(*pc_indices)[i]].x * pcl_pc_in->points[(*pc_indices)[i]].x +
-	pcl_pc_in->points[(*pc_indices)[i]].y * pcl_pc_in->points[(*pc_indices)[i]].y +
-	pcl_pc_in->points[(*pc_indices)[i]].z * pcl_pc_in->points[(*pc_indices)[i]].z;
+      float d2 = pcl_pc_in->points[i].x * pcl_pc_in->points[i].x + pcl_pc_in->points[i].y * pcl_pc_in->points[i].y + pcl_pc_in->points[i].z * pcl_pc_in->points[i].z;
       if(d2 > range * range && d2 <= (range+regions_[j]) * (range+regions_[j])) {
-      	indices_array[j].push_back((*pc_indices)[i]);
+      	indices_array[j].push_back(i);
       	break;
       }
       range += regions_[j];
     }
   }
   
-  /*** Euclidean clustering ***/
   float tolerance = 0.0;
-  std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr, Eigen::aligned_allocator<pcl::PointCloud<pcl::PointXYZI>::Ptr > > clusters;
+  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr, Eigen::aligned_allocator<pcl::PointCloud<pcl::PointXYZ>::Ptr > > clusters;
   
   for(int i = 0; i < region_max_; i++) {
     tolerance += 0.1;
+    
     if(indices_array[i].size() > cluster_size_min_) {
-      boost::shared_ptr<std::vector<int> > indices_array_ptr(new std::vector<int>(indices_array[i]));
-      pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>);
-      tree->setInputCloud(pcl_pc_in, indices_array_ptr);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::copyPointCloud(*pcl_pc_in, indices_array[i], *cloud_filtered);
       
-      std::vector<pcl::PointIndices> cluster_indices;
-      pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
-      ec.setClusterTolerance(tolerance);
-      ec.setMinClusterSize(cluster_size_min_);
-      ec.setMaxClusterSize(cluster_size_max_);
-      ec.setSearchMethod(tree);
-      ec.setInputCloud(pcl_pc_in);
-      ec.setIndices(indices_array_ptr);
-      ec.extract(cluster_indices);
+      pcl::gpu::Octree::PointCloud cloud_device;
+      cloud_device.upload(cloud_filtered->points);
       
-      for(std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); it++) {
-      	pcl::PointCloud<pcl::PointXYZI>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZI>);
-      	for(std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit) {
-      	  cluster->points.push_back(pcl_pc_in->points[*pit]);
-  	}
-      	cluster->width = cluster->size();
-      	cluster->height = 1;
-      	cluster->is_dense = true;
-	clusters.push_back(cluster);
+      pcl::gpu::Octree::Ptr octree_device(new pcl::gpu::Octree);
+      octree_device->setCloud(cloud_device);
+      octree_device->build();
+      
+      std::vector<pcl::PointIndices> cluster_indices_gpu;
+      pcl::gpu::EuclideanClusterExtraction<pcl::PointXYZ> gec;
+      gec.setClusterTolerance(tolerance);
+      gec.setMinClusterSize(cluster_size_min_);
+      gec.setMaxClusterSize(cluster_size_max_);
+      gec.setSearchMethod(octree_device);
+      gec.setHostCloud(cloud_filtered);
+      gec.extract(cluster_indices_gpu);
+      
+      for(const pcl::PointIndices& cluster : cluster_indices_gpu) {
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster_gpu(new pcl::PointCloud<pcl::PointXYZ>);
+	for(const auto& index : (cluster.indices)) {
+	  cloud_cluster_gpu->push_back((*cloud_filtered)[index]);
+	}
+	cloud_cluster_gpu->width = cloud_cluster_gpu->size();
+	cloud_cluster_gpu->height = 1;
+	cloud_cluster_gpu->is_dense = true;
+	clusters.push_back(cloud_cluster_gpu);
       }
     }
   }
-  
+
   /*** Output ***/
   if(cloud_filtered_pub_.getNumSubscribers() > 0) {
-    pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_pc_out(new pcl::PointCloud<pcl::PointXYZI>);
     sensor_msgs::PointCloud2 ros_pc2_out;
-    pcl::copyPointCloud(*pcl_pc_in, *pc_indices, *pcl_pc_out);
-    pcl::toROSMsg(*pcl_pc_out, ros_pc2_out);
+    pcl::toROSMsg(*pcl_pc_in, ros_pc2_out);
     cloud_filtered_pub_.publish(ros_pc2_out);
   }
   
@@ -162,7 +168,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       
       visualization_msgs::Marker marker;
       marker.header = ros_pc2_in->header;
-      marker.ns = "adaptive_clustering";
+      marker.ns = "adaptive_clustering_gpu";
       marker.id = i;
       marker.type = visualization_msgs::Marker::LINE_LIST;
       
@@ -219,11 +225,14 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
     marker_array_pub_.publish(marker_array);
   }
   
-  if(print_fps_)if(++frames>10){std::cerr<<"[adaptive_clustering] fps = "<<float(frames)/(float(clock()-start_time)/CLOCKS_PER_SEC)<<", timestamp = "<<clock()/CLOCKS_PER_SEC<<std::endl;reset = true;}//fps
+  if(print_fps_)if(++frames>10){std::cerr<<"[adaptive_clustering_gpu] fps = "<<float(frames)/(float(clock()-start_time)/CLOCKS_PER_SEC)<<", timestamp = "<<clock()/CLOCKS_PER_SEC<<std::endl;reset = true;}//fps
 }
 
 int main(int argc, char **argv) {
-  ros::init(argc, argv, "adaptive_clustering");
+  ros::init(argc, argv, "adaptive_clustering_gpu");
+  
+  ROS_WARN("This is the GPU version of Adaptive Clustering.");
+  pcl::gpu::printCudaDeviceInfo();
   
   /*** Subscribers ***/
   ros::NodeHandle nh;

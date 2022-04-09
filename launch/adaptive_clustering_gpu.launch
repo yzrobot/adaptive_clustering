@@ -1,0 +1,7 @@
+<launch>
+  <node pkg="adaptive_clustering_gpu" name="adaptive_clustering_gpu" type="adaptive_clustering_gpu">
+    <param name="print_fps" value="true"/>
+  </node>
+  
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find adaptive_clustering_gpu)/launch/adaptive_clustering_gpu.rviz"/>
+</launch>
