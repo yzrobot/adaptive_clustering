@@ -18,7 +18,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseArray.h>
 #include <visualization_msgs/MarkerArray.h>
-#include "adaptive_clustering/ClusterArray.h"
+#include "adaptive_clustering_gpu/ClusterArray.h"
 
 // PCL
 #include <pcl_conversions/pcl_conversions.h>
