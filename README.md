@@ -10,15 +10,13 @@
 
 **\[Apr 14, 2022\]:** Two new branches, [gpu](https://github.com/yzrobot/adaptive_clustering/tree/gpu) and [agx](https://github.com/yzrobot/adaptive_clustering/tree/agx), have been created to test the GPU-based version:
 
-* [gpu](https://github.com/yzrobot/adaptive_clustering/tree/gpu) is based on [PCL-GPU](https://pcl.readthedocs.io/projects/tutorials/en/master/#gpu) and has been tested with an NVIDIA TITAN Xp.
-
-* [agx](https://github.com/yzrobot/adaptive_clustering/tree/agx) is based on [CUDA-PCL](https://github.com/NVIDIA-AI-IOT/cuda-pcl) and has been tested with an NVIDIA Jetson AGX Xavier.
+  * [gpu](https://github.com/yzrobot/adaptive_clustering/tree/gpu) is based on [PCL-GPU](https://pcl.readthedocs.io/projects/tutorials/en/master/#gpu) and has been tested with an NVIDIA TITAN Xp.
+  * [agx](https://github.com/yzrobot/adaptive_clustering/tree/agx) is based on [CUDA-PCL](https://github.com/NVIDIA-AI-IOT/cuda-pcl) and has been tested with an NVIDIA Jetson AGX Xavier.
 
 **\[Feb 25, 2019\]:** A new branch, [devel](https://github.com/yzrobot/adaptive_clustering/tree/devel), has been created to improve the accuracy of clustering (currently at the expense of real-time performance), including:
 
-* Merge clusters split by nested regions.
-
-* Merge clusters on the z-axis.
+  * Merge clusters split by nested regions.
+  * Merge clusters on the z-axis.
 
 ## How to build ##
 ```
