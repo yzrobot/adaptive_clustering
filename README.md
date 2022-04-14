@@ -9,11 +9,20 @@ A lightweight and accurate point cloud clustering method (check out the [devel](
 [https://pcl.readthedocs.io/projects/tutorials/en/master/gpu_install.html#gpu-install](https://pcl.readthedocs.io/projects/tutorials/en/master/gpu_install.html#gpu-install)
 
 ## How to build ##
+```sh
+cd ~/catkin_ws/src/
+git clone -b gpu https://github.com/yzrobot/adaptive_clustering.git
+cd ~/catkin_ws
+catkin_make
 ```
-$ cd ~/catkin_ws/src/
-$ git clone -b gpu https://github.com/yzrobot/adaptive_clustering.git
-$ cd ~/catkin_ws
-$ catkin_make
+
+## Test environment ##
+```
+Jetson Xavier AGX 32GB
+Jetpack 4.4.1
+CUDA 10.2
+PCL 1.8
+Eigen 3
 ```
 
 ## Citation ##
