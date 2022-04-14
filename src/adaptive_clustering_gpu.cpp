@@ -125,7 +125,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
     cloud_filtered_pub_.publish(ros_pc2_out);
   }
   
-  adaptive_clustering::ClusterArray cluster_array;
+  adaptive_clustering_gpu::ClusterArray cluster_array;
   geometry_msgs::PoseArray pose_array;
   visualization_msgs::MarkerArray marker_array;
   
@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
 
   /*** Publishers ***/
   ros::NodeHandle private_nh("~");
-  cluster_array_pub_ = private_nh.advertise<adaptive_clustering::ClusterArray>("clusters", 100);
+  cluster_array_pub_ = private_nh.advertise<adaptive_clustering_gpu::ClusterArray>("clusters", 100);
   cloud_filtered_pub_ = private_nh.advertise<sensor_msgs::PointCloud2>("cloud_filtered", 100);
   pose_array_pub_ = private_nh.advertise<geometry_msgs::PoseArray>("poses", 100);
   marker_array_pub_ = private_nh.advertise<visualization_msgs::MarkerArray>("markers", 100);
