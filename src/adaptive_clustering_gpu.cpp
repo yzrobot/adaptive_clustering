@@ -1,4 +1,4 @@
-// Copyright (C) 2022  Zhi Yan
+// Copyright (C) 2022 Zhi Yan
 
 // This program is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by the Free
@@ -25,12 +25,9 @@
 #include <pcl/common/common.h>
 #include <pcl/common/centroid.h>
 
-// PCL-GPU
-#include <pcl/gpu/octree/octree.hpp>
-#include <pcl/gpu/containers/device_array.hpp>
-#include <pcl/gpu/containers/initialization.h>
-#include <pcl/gpu/segmentation/gpu_extract_clusters.h>
-#include <pcl/gpu/segmentation/impl/gpu_extract_clusters.hpp>
+// CUDA-PCL
+#include <cuda_runtime.h>
+#include "cudaCluster.h"
 
 #define LOG
 
@@ -86,35 +83,70 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
     tolerance += 0.1;
     
     if(indices_array[i].size() > cluster_size_min_) {
-      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-      pcl::copyPointCloud(*pcl_pc_in, indices_array[i], *cloud_filtered);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_regionalized(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::copyPointCloud(*pcl_pc_in, indices_array[i], *cloud_regionalized);
+
+      cudaStream_t stream = NULL;
+      cudaStreamCreate(&stream);
       
-      pcl::gpu::Octree::PointCloud cloud_device;
-      cloud_device.upload(cloud_filtered->points);
+      float *inputEC = NULL;
+      unsigned int sizeEC = cloud_regionalized->size();
+      cudaMallocManaged(&inputEC, sizeof(float) * 4 * sizeEC, cudaMemAttachHost);
+      cudaStreamAttachMemAsync(stream, inputEC);
+      cudaMemcpyAsync(inputEC, cloud_regionalized->points.data(), sizeof(float) * 4 * sizeEC, cudaMemcpyHostToDevice, stream);
+      cudaStreamSynchronize(stream);
+
+      float *outputEC = NULL;
+      cudaMallocManaged(&outputEC, sizeof(float) * 4 * sizeEC, cudaMemAttachHost);
+      cudaStreamAttachMemAsync(stream, outputEC);
+      cudaMemcpyAsync(outputEC, cloud_regionalized->points.data(), sizeof(float) * 4 * sizeEC, cudaMemcpyHostToDevice, stream);
+      cudaStreamSynchronize(stream);
+
+      unsigned int *indexEC = NULL;
+      cudaMallocManaged(&indexEC, sizeof(float) * 4 * sizeEC, cudaMemAttachHost);
+      cudaStreamAttachMemAsync(stream, indexEC);
+      cudaMemsetAsync(indexEC, 0, sizeof(float) * 4 * sizeEC, stream);
+      cudaStreamSynchronize(stream);
+
+      extractClusterParam_t ecp;
+      ecp.minClusterSize = cluster_size_min_;
+      ecp.maxClusterSize = cluster_size_max_;
+      ecp.voxelX = tolerance;
+      ecp.voxelY = tolerance;
+      ecp.voxelZ = tolerance;
+      ecp.countThreshold = 0;
+      cudaExtractCluster cudaec(stream);
+      cudaec.set(ecp);
       
-      pcl::gpu::Octree::Ptr octree_device(new pcl::gpu::Octree);
-      octree_device->setCloud(cloud_device);
-      octree_device->build();
-      
-      std::vector<pcl::PointIndices> cluster_indices_gpu;
-      pcl::gpu::EuclideanClusterExtraction<pcl::PointXYZ> gec;
-      gec.setClusterTolerance(tolerance);
-      gec.setMinClusterSize(cluster_size_min_);
-      gec.setMaxClusterSize(cluster_size_max_);
-      gec.setSearchMethod(octree_device);
-      gec.setHostCloud(cloud_filtered);
-      gec.extract(cluster_indices_gpu);
-      
-      for(const pcl::PointIndices& cluster : cluster_indices_gpu) {
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster_gpu(new pcl::PointCloud<pcl::PointXYZ>);
-	for(const auto& index : (cluster.indices)) {
-	  cloud_cluster_gpu->push_back((*cloud_filtered)[index]);
+      cudaec.extract(inputEC, sizeEC, outputEC, indexEC);
+      cudaStreamSynchronize(stream);
+
+      for(int i = 1; i <= indexEC[0]; i++) {
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+	cloud_cluster->width = indexEC[i];
+	cloud_cluster->height = 1;
+	cloud_cluster->points.resize(cloud_cluster->width * cloud_cluster->height);
+	cloud_cluster->is_dense = true;
+
+	unsigned int outoff = 0;
+	for(int w = 1; w < i; w++) {
+	  if(i > 1) {
+	    outoff += indexEC[w];
+	  }
 	}
-	cloud_cluster_gpu->width = cloud_cluster_gpu->size();
-	cloud_cluster_gpu->height = 1;
-	cloud_cluster_gpu->is_dense = true;
-	clusters.push_back(cloud_cluster_gpu);
+	
+	for(std::size_t k = 0; k < indexEC[i]; ++k) {
+	  cloud_cluster->points[k].x = outputEC[(outoff+k)*4+0];
+	  cloud_cluster->points[k].y = outputEC[(outoff+k)*4+1];
+	  cloud_cluster->points[k].z = outputEC[(outoff+k)*4+2];
+	}
+
+	clusters.push_back(cloud_cluster);
       }
+      
+      cudaFree(inputEC);
+      cudaFree(outputEC);
+      cudaFree(indexEC);
     }
   }
 
@@ -232,7 +264,6 @@ int main(int argc, char **argv) {
   ros::init(argc, argv, "adaptive_clustering_gpu");
   
   ROS_WARN("This is the GPU version of Adaptive Clustering.");
-  pcl::gpu::printCudaDeviceInfo();
   
   /*** Subscribers ***/
   ros::NodeHandle nh;
