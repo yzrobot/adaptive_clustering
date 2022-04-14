@@ -4,10 +4,6 @@ A lightweight and accurate point cloud clustering method (check out the [devel](
 
 [![YouTube Video](https://img.youtube.com/vi/rmPn7mWssto/0.jpg)](https://www.youtube.com/watch?v=rmPn7mWssto)
 
-## Configuring your PC to use your Nvidia GPU with PCL ##
-
-[https://pcl.readthedocs.io/projects/tutorials/en/master/gpu_install.html#gpu-install](https://pcl.readthedocs.io/projects/tutorials/en/master/gpu_install.html#gpu-install)
-
 ## How to build ##
 ```sh
 cd ~/catkin_ws/src/
