@@ -14,7 +14,7 @@ catkin_make
 
 ## Test environment ##
 ```
-Jetson Xavier AGX 32GB
+Jetson Xavier AGX
 Jetpack 4.4.1
 CUDA 10.2
 PCL 1.8
