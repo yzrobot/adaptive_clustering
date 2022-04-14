@@ -22,6 +22,7 @@ TITAN Xp
 CUDA 10.2
 PCL 1.12
 Eigen 3.3.7
+```
 
 ## Citation ##
 If you are considering using this code, please reference the following:
