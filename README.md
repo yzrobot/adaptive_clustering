@@ -1,8 +1,6 @@
-# Adaptive Clustering #
+# Adaptive Clustering: A lightweight and accurate point cloud clustering method #
 
 *Downsampling, cluster merging, and more.*
-
-A lightweight and accurate point cloud clustering method.
 
 [![YouTube Video](https://img.youtube.com/vi/rmPn7mWssto/0.jpg)](https://www.youtube.com/watch?v=rmPn7mWssto)
 
