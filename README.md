@@ -1,6 +1,4 @@
-# Adaptive Clustering (GPU version) #
-
-A lightweight and accurate point cloud clustering method (check out the [devel](https://github.com/yzrobot/adaptive_clustering/tree/devel) branch for further enrichment).
+# Adaptive Clustering (GPU version): A lightweight and accurate point cloud clustering method #
 
 [![YouTube Video](https://img.youtube.com/vi/rmPn7mWssto/0.jpg)](https://www.youtube.com/watch?v=rmPn7mWssto)
 
