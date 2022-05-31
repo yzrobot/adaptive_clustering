@@ -36,9 +36,7 @@ ros::Publisher pose_array_pub_;
 ros::Publisher marker_array_pub_;
 
 bool print_fps_;
-float leaf_x_;
-float leaf_y_;
-float leaf_z_;
+int leaf_;
 float z_axis_min_;
 float z_axis_max_;
 float radius_min_;
@@ -56,26 +54,18 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   if(print_fps_)if(reset){frames=0;start_time=clock();reset=false;}//fps
   
   /*** Convert ROS message to PCL ***/
-  pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_pc_in(new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_pc_in(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(*ros_pc2_in, *pcl_pc_in);
   
-  /*** Downsampling if necessary ***/
-  if(leaf_x_ > 0 || leaf_y_ > 0 || leaf_z_ > 0) {
-    //std::cerr << "Points before downsampling: " << pcl_pc_in->size() << std::endl;
-    pcl::VoxelGrid<pcl::PointXYZI> vg;
-    vg.setInputCloud(pcl_pc_in);
-    vg.setLeafSize(leaf_x_, leaf_y_, leaf_z_);
-    vg.filter(*pcl_pc_in);
-    //std::cerr << "Points after downsampling: " << pcl_pc_in->size() << std::endl;
-  }
-
-  /*** Remove ground and ceiling ***/
+  /*** Downsampling + ground & ceiling removal ***/
   pcl::IndicesPtr pc_indices(new std::vector<int>);
-  pcl::PassThrough<pcl::PointXYZI> pt;
-  pt.setInputCloud(pcl_pc_in);
-  pt.setFilterFieldName("z");
-  pt.setFilterLimits(z_axis_min_, z_axis_max_);
-  pt.filter(*pc_indices);
+  for(int i = 0; i < pcl_pc_in->size(); ++i) {
+    if(i % leaf_ == 0) {
+      if(pcl_pc_in->points[i].z >= z_axis_min_ && pcl_pc_in->points[i].z <= z_axis_max_) {
+	pc_indices->push_back(i);
+      }
+    }
+  }
   
   /*** Divide the point cloud into nested circular regions ***/
   boost::array<std::vector<int>, region_max_> indices_array;
@@ -96,7 +86,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   
   /*** Euclidean clustering ***/
   float tolerance = 0.0;
-  std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr, Eigen::aligned_allocator<pcl::PointCloud<pcl::PointXYZI>::Ptr > > clusters;
+  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr, Eigen::aligned_allocator<pcl::PointCloud<pcl::PointXYZ>::Ptr > > clusters;
   int last_clusters_begin = 0;
   int last_clusters_end = 0;
   
@@ -104,11 +94,11 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
     tolerance += 0.1;
     if(indices_array[i].size() > cluster_size_min_) {
       boost::shared_ptr<std::vector<int> > indices_array_ptr(new std::vector<int>(indices_array[i]));
-      pcl::search::KdTree<pcl::PointXYZI>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZI>);
+      pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
       tree->setInputCloud(pcl_pc_in, indices_array_ptr);
       
       std::vector<pcl::PointIndices> cluster_indices;
-      pcl::EuclideanClusterExtraction<pcl::PointXYZI> ec;
+      pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
       ec.setClusterTolerance(tolerance);
       ec.setMinClusterSize(cluster_size_min_);
       ec.setMaxClusterSize(cluster_size_max_);
@@ -118,13 +108,13 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       ec.extract(cluster_indices);
       
       for(std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); it++) {
-      	pcl::PointCloud<pcl::PointXYZI>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZI>);
+      	pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
       	for(std::vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit) {
       	  cluster->points.push_back(pcl_pc_in->points[*pit]);
 	}
 	/*** Merge clusters separated by nested regions ***/
 	for(int j = last_clusters_begin; j < last_clusters_end; j++) {
-	  pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
+	  pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
 	  int K = 1; //the number of neighbors to search for
 	  std::vector<int> k_indices(K);
 	  std::vector<float> k_sqr_distances(K);
@@ -168,7 +158,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
   
   /*** Output ***/
   if(cloud_filtered_pub_.getNumSubscribers() > 0) {
-    pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_pc_out(new pcl::PointCloud<pcl::PointXYZI>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_pc_out(new pcl::PointCloud<pcl::PointXYZ>);
     sensor_msgs::PointCloud2 ros_pc2_out;
     pcl::copyPointCloud(*pcl_pc_in, *pc_indices, *pcl_pc_out);
     pcl::toROSMsg(*pcl_pc_out, ros_pc2_out);
@@ -250,7 +240,7 @@ void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& ros_pc2_in) {
       for(int i = 0; i < 24; i++) {
   	marker.points.push_back(p[i]);
       }
-      
+      marker.pose.orientation.w = 1.0;
       marker.scale.x = 0.02;
       marker.color.a = 1.0;
       marker.color.r = 0.0;
@@ -297,9 +287,7 @@ int main(int argc, char **argv) {
   
   private_nh.param<std::string>("sensor_model", sensor_model, "VLP-16"); // VLP-16, HDL-32E, HDL-64E
   private_nh.param<bool>("print_fps", print_fps_, false);
-  private_nh.param<float>("leaf_x", leaf_x_, 0.0);
-  private_nh.param<float>("leaf_y", leaf_y_, 0.0);
-  private_nh.param<float>("leaf_z", leaf_z_, 0.0);
+  private_nh.param<int>("leaf", leaf_, 3);
   private_nh.param<float>("z_axis_min", z_axis_min_, -0.8);
   private_nh.param<float>("z_axis_max", z_axis_max_, 2.0);
   private_nh.param<float>("radius_min", radius_min_, 0.0);
