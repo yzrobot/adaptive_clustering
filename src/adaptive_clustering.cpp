@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
   
   private_nh.param<std::string>("sensor_model", sensor_model, "VLP-16"); // VLP-16, HDL-32E, HDL-64E
   private_nh.param<bool>("print_fps", print_fps_, false);
-  private_nh.param<int>("leaf", leaf_, 3);
+  private_nh.param<int>("leaf", leaf_, 1);
   private_nh.param<float>("z_axis_min", z_axis_min_, -0.8);
   private_nh.param<float>("z_axis_max", z_axis_max_, 2.0);
   private_nh.param<int>("cluster_size_min", cluster_size_min_, 3);
